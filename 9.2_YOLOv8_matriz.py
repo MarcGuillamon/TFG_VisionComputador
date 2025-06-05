@@ -1,70 +1,78 @@
-import cv2
-import numpy as np
 from ultralytics import YOLO
+import numpy as np
+import cv2
 
+# Cargar modelo
 model = YOLO('best.pt')
 cap = cv2.VideoCapture(0)
+
+# Configuración de color (de tu script 7.1_Detec_color.py)
+area_size = 3  
+half_size = area_size // 2
+
+def get_dominant_color(frame, x, y):
+    """Obtiene el color promedio en un área 3x3 alrededor de (x,y) en formato BGR"""
+    roi = frame[y-half_size:y+half_size+1, x-half_size:x+half_size+1]
+    if roi.size == 0:
+        return None
+    return np.mean(roi, axis=(0, 1)).astype(int)
+
+def classify_color(bgr_color):
+    """Clasifica el color BGR a letra"""
+    if bgr_color is None:
+        return "?"
+    
+    # Convertir BGR a HSV
+    hsv = cv2.cvtColor(np.uint8([[bgr_color]]), cv2.COLOR_BGR2HSV)[0][0]
+    h, s, v = hsv
+    
+    # Clasificación (adaptada de tu código)
+    if s < 50:
+        return "W" if v > 135 else "N"  # Blanco o Negro
+    else:
+        if h < 5 or h > 175: return "R"  # Rojo
+        elif 5 <= h < 22: return "O"     # Naranja
+        elif 22 <= h < 40: return "A"    # Amarillo
+        elif 40 <= h < 78: return "G"    # Verde
+        elif 78 <= h < 131: return "B"   # Azul
+        else: return "?"
 
 while True:
     ret, frame = cap.read()
     if not ret: break
-    
+
     results = model(frame)
-    masks = results[0].masks  # Máscaras de segmentación
+    masks = results[0].masks
+    boxes = results[0].boxes if results[0].boxes else []
 
-    if masks is not None:
-        for mask in masks:
-            # Obtener coordenadas del bounding box
-            x1, y1, x2, y2 = map(int, mask.xyxy[0].cpu().numpy())
-            
-            # Crear máscara binaria
-            mask_data = mask.data[0].cpu().numpy()
-            binary_mask = (mask_data > 0).astype(np.uint8) * 255
-            
-            # Encontrar contornos para obtener la máscara exacta
-            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours: continue
-            
-            # Crear máscara convexa para la cara
-            hull = cv2.convexHull(np.vstack(contours))
-            face_mask = np.zeros_like(binary_mask)
-            cv2.drawContours(face_mask, [hull], -1, 255, -1)
-
-            # Dividir la región en 3x3
+    if masks:
+        for mask, box in zip(masks, boxes):
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
             h, w = y2-y1, x2-x1
+            
+            # Dividir en 3x3 facelets
             for i in range(3):
                 for j in range(3):
-                    # Coordenadas del facelet
-                    fx1 = x1 + j * w//3
-                    fx2 = x1 + (j+1) * w//3
-                    fy1 = y1 + i * h//3
-                    fy2 = y1 + (i+1) * h//3
+                    # Centro del facelet (i,j)
+                    center_x = x1 + (j * w//3) + (w//6)
+                    center_y = y1 + (i * h//3) + (h//6)
                     
-                    # Máscara del facelet
-                    facelet_mask = face_mask[fy1:fy2, fx1:fx2]
-                    facelet_area = frame[fy1:fy2, fx1:fx2]
+                    # Obtener y clasificar color
+                    color_bgr = get_dominant_color(frame, center_x, center_y)
+                    color_letter = classify_color(color_bgr)
                     
-                    # Obtener color dominante (HSV)
-                    if np.any(facelet_mask):
-                        hsv = cv2.cvtColor(facelet_area, cv2.COLOR_BGR2HSV)
-                        masked_hsv = hsv[facelet_mask == 255]
-                        if len(masked_hsv) > 0:
-                            median_hue = np.median(masked_hsv[:,0])
-                            color_name = classify_color(median_hue)  # Tu función de clasificación
-                            
-                            # Dibujar información
-                            cv2.rectangle(frame, (fx1, fy1), (fx2, fy2), (0,255,0), 1)
-                            cv2.putText(frame, color_name, (fx1, fy1+15), 
-                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-                            
-def classify_color(hue):
-    if 0 <= hue < 15 or 165 <= hue <= 180: return "Rojo"
-    elif 35 <= hue < 85: return "Verde"
-    elif 100 <= hue < 140: return "Azul"
-    # Añade más rangos según necesites
-    return "Desconocido"
+                    # Dibujar cuadrado + letra
+                    cv2.rectangle(frame, 
+                                (x1 + j*w//3, y1 + i*h//3),
+                                (x1 + (j+1)*w//3, y1 + (i+1)*h//3),
+                                (0,255,0), 1)
+                    
+                    cv2.putText(frame, color_letter,
+                              (center_x-5, center_y+5),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                              (255,255,255), 2)
 
-    cv2.imshow('Rubik Detection', frame)
+    cv2.imshow('Rubik Color Detection', frame)
     if cv2.waitKey(1) == ord('q'): break
 
 cap.release()

@@ -29,30 +29,21 @@ def get_dominant_color(frame, x, y, size=3):
 def classify_color(h, s, v):
     """Clasifica el color basado en valores HSV"""
     if s < 50:  # Bajos niveles de saturación (grises/blancos/negros)
-        if v > 150:
+        if v > 135:
             return "Blanco"
-        elif v < 50:
-            return "Negro"
         else:
-            return "Gris"
+            return "Negro/Gris"
     else:  # Colores saturados
         if h < 5 or h > 175:
             return "Rojo"
         elif 5 <= h < 22:
             return "Naranja"
         elif 22 <= h < 33:
-            return "Amarillo"
+            return  "Amarillo"
         elif 33 <= h < 78:
             return "Verde"
         elif 78 <= h < 131:
             return "Azul"
-        elif 131 <= h < 145:
-            return "Morado"
-        elif 145 <= h < 160:
-            return "Rosa"
-        elif 160 <= h < 175:
-            return "Rojo (tono rosado)"
-    return "Indeterminado"
 
 while True:
     ret, frame = cap.read()

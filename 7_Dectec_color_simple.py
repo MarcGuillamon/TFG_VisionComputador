@@ -32,12 +32,10 @@ while True:
     # Clasificar el color (misma lógica que antes)
     color_name = "Indeterminado"
     if s < 50:
-        if v > 150:
+        if v > 135:
             color_name = "Blanco"
-        elif v < 50:
-            color_name = "Negro"
         else:
-            color_name = "Gris"
+            color_name = "Negro/Gris"
     else:  # Colores saturados
         if h < 5 or h > 175:
             color_name = "Rojo"
