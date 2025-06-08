@@ -6,6 +6,33 @@ import cv2
 import time
 from Kociembas2 import kociembas_algorithm
 
+from Interfaz_tkinter3 import RubikGUI
+import threading
+import tkinter as tk
+
+# Inicializar la GUI en un hilo separado
+gui = None
+solved_sides = {}  # Diccionario vacío al inicio
+last_gui_check = time.time()    # Para verificar el tiempo GUI
+
+if gui is not None: # Asegurarse de cerrar la GUI correctamente
+    gui.root.quit()
+
+def iniciar_interfaz():
+    try:
+        global gui
+        gui = RubikGUI(solved_sides)  # Pasamos la referencia al diccionario
+        gui.run()
+    except Exception as e:
+        print(f"Error al iniciar GUI: {e}")
+        raise
+
+# Iniciar la GUI en un hilo separado al principio del programa
+threading.Thread(target=iniciar_interfaz, daemon=True).start()
+
+# Esperar un momento para que la GUI se inicialice
+time.sleep(0.5)
+
 # Configuración inicial
 model = YOLO('best.pt')
 model.verbose = False  # Esto reduce algunos mensajes
@@ -72,39 +99,160 @@ def save_side_colors(colors, position):
     if face_name and len(colors) == 9:
         solved_sides[face_name] = "".join(colors)
 
+        # Actualizar la interfaz gráfica
+        if gui is not None:
+            gui.actualizar_cara_segura(face_name, colors)
+            # Sincronizar el estado interno de la GUI
+            gui.estado_cubo[face_name] = [
+                [gui.color_letra_a_nombre(colors[0]), gui.color_letra_a_nombre(colors[1]), gui.color_letra_a_nombre(colors[2])],
+                [gui.color_letra_a_nombre(colors[3]), gui.color_letra_a_nombre(colors[4]), gui.color_letra_a_nombre(colors[5])],
+                [gui.color_letra_a_nombre(colors[6]), gui.color_letra_a_nombre(colors[7]), gui.color_letra_a_nombre(colors[8])]]
+
         print(f"\n=== CARA {face_name} ===")
         print(f"Fila 1: {colors[0]} {colors[1]} {colors[2]}")
         print(f"Fila 2: {colors[3]} {colors[4]} {colors[5]}")
         print(f"Fila 3: {colors[6]} {colors[7]} {colors[8]}")
         print(f"Cara {face_name} guardada: {solved_sides[face_name]}")
         
-        # Si tenemos todas las caras, resolver el cubo
+        # Si tenemos todas las caras, verificar antes de resolver
         if len(solved_sides) == 6:
-            try:
-            # Convertimos cada cara al formato Kociemba antes de enviar
-                U = convert_colors_to_kociemba_format(solved_sides['U'])
-                R = convert_colors_to_kociemba_format(solved_sides['R'])
-                F = convert_colors_to_kociemba_format(solved_sides['F'])
-                D = convert_colors_to_kociemba_format(solved_sides['D'])
-                L = convert_colors_to_kociemba_format(solved_sides['L'])
-                B = convert_colors_to_kociemba_format(solved_sides['B'])
-                
-                solution = kociembas_algorithm(U, R, F, D, L, B)
-                print("\nSOLUCIÓN DEL CUBO:")
-                print(solution)
+            print("\n¡Todas las caras registradas!")
+            if gui is not None:
+                gui.root.focus_force()  # Asegurar que la ventana tiene foco
 
-                # Preguntar si enviar a ESP32
-                respuesta = input("\n¿Quieres enviar la secuencia a la ESP32? (SI/NO): ").strip().upper()
-                
-                if respuesta == "SI":
-                    from ESP32_COMSerial import enviar_secuencia
-                    enviar_secuencia(solution)
-                    print("Secuencia enviada correctamente!")
-                else:
-                    print("Secuencia no enviada")
+            while True:
+                if gui is not None:
+                    gui.verificar_cambios()
                     
-            except Exception as e:
-                print(f"\nError al resolver: {e}")
+                #Preguntamos si queremos la solución del algoritmo de kociemba
+                respuesta = get_input_con_actualizacion("\n¿Deseas obtener la solución ahora? (SI/NO/VER): ")
+            
+                if respuesta == "VER":
+                    # Mostrar todas las caras registradas
+                    print("\nCaras registradas:")
+                    for cara, colores in solved_sides.items():
+                        print(f"{cara}: {colores}")
+
+                    # Preguntar si alguna cara necesita corrección
+                    corregir = get_input_con_actualizacion("\n¿Quieres corregir alguna cara? (Nombre de la cara o pulsa 'ok' para continuar): ")
+                    if corregir in solved_sides:
+                        del solved_sides[corregir]  # Eliminar la cara para volver a registrarla
+                        
+                        # Actualizar GUI para mostrar solo el centro de la cara eliminada
+                        if gui is not None:
+                            gui.reset_cara(corregir)
+                        print(f"\nCara {corregir} eliminada. Por favor, vuelve a registrar esta cara.")
+                        return  # Salir de la función para permitir nuevo registro
+                    
+                elif respuesta == "SI":
+                    try:
+                        # Convertimos cada cara al formato Kociemba antes de enviar
+                        U = convert_colors_to_kociemba_format(solved_sides['U'])
+                        R = convert_colors_to_kociemba_format(solved_sides['R'])
+                        F = convert_colors_to_kociemba_format(solved_sides['F'])
+                        D = convert_colors_to_kociemba_format(solved_sides['D'])
+                        L = convert_colors_to_kociemba_format(solved_sides['L'])
+                        B = convert_colors_to_kociemba_format(solved_sides['B'])
+                
+                        solution = kociembas_algorithm(U, R, F, D, L, B)
+                        print("\nSOLUCIÓN DEL CUBO:")
+                        print(solution)
+                
+                        # Preguntar si enviar a ESP32
+                        respuesta = get_input_con_actualizacion("\n¿Quieres enviar la secuencia a la ESP32? (SI/NO): ")
+                        
+                        if respuesta == "SI":
+                            from ESP32_COMSerial import enviar_secuencia
+                            enviar_secuencia(solution)
+                            print("Secuencia enviada correctamente!")
+                        break
+                            
+                    except Exception as e:
+                        print(f"\nError al resolver: {e}")
+                        print("Revisa los colores detectados e intenta nuevamente.")
+                        # Mostrar colores actuales para facilitar diagnóstico
+                        print("\nEstado actual del cubo:")
+                        for cara, colores in solved_sides.items():
+                            print(f"{cara}: {colores}")
+
+                elif respuesta == "NO":
+                    # Eliminar la última cara registrada para permitir corrección
+                    ultima_cara = list(solved_sides.keys())[-1]
+                    del solved_sides[ultima_cara]
+                    print(f"\nCara {ultima_cara} eliminada. Por favor, vuelve a registrar esta cara o 'actualizar' la que quieras")
+
+                    # Actualizar GUI para mostrar solo el centro
+                    if gui is not None:
+                        gui.reset_cara(ultima_cara)
+                    return
+                
+                else:
+                    print("Opción no válida. Por favor ingresa SI, NO o VER")
+
+def get_input_con_actualizacion(prompt):
+    """Versión de input que permite actualizar la GUI mientras espera"""
+    if gui is None:
+        return input(prompt).strip().upper()
+    
+    # Usamos una variable compartida y eventos
+    from threading import Event
+    respuesta = []
+    evento_respuesta = Event()
+
+    def mostrar_dialogo():
+        try:
+            dialogo = tk.Toplevel(gui.root)
+            dialogo.title("Input")
+            dialogo.transient(gui.root)
+            
+            tk.Label(dialogo, text=prompt).pack(padx=10, pady=5)
+            entry = tk.Entry(dialogo)
+            entry.pack(padx=10, pady=5)
+            
+            def on_ok():
+                # VERIFICACIÓN ANTES DE CERRAR (NUEVO)
+                if gui is not None:
+                    for cara in ['U', 'R', 'F', 'D', 'L', 'B']:
+                        if cara in solved_sides:
+                            nuevo_estado = []
+                            for i in range(3):
+                                for j in range(3):
+                                    color = gui.estado_cubo[cara][i][j]
+                                    nuevo_estado.append(gui.color_nombre_a_letra(color) if color else '?')
+                            solved_sides[cara] = ''.join(nuevo_estado)
+
+                respuesta.append(entry.get().upper())
+                dialogo.destroy()
+                evento_respuesta.set()
+                
+            tk.Button(dialogo, text="OK", command=on_ok).pack(pady=5)
+            
+            dialogo.protocol("WM_DELETE_WINDOW", on_ok)
+            entry.focus_set()
+            
+            # Centrar el diálogo
+            dialogo.update_idletasks()
+            width = dialogo.winfo_width()
+            height = dialogo.winfo_height()
+            x = (gui.root.winfo_screenwidth() // 2) - (width // 2)
+            y = (gui.root.winfo_screenheight() // 2) - (height // 2)
+            dialogo.geometry(f'+{x}+{y}')
+            
+        except Exception as e:
+            print(f"Error en diálogo: {e}")
+            respuesta.append("")
+            evento_respuesta.set()
+    
+    # Ejecutar el diálogo en el hilo principal de Tkinter
+    gui.root.after(0, mostrar_dialogo)
+    
+    # Esperar la respuesta mientras mantenemos la GUI activa
+    while not evento_respuesta.is_set():
+        if gui is not None:
+            gui.root.update()
+            time.sleep(0.05)
+    
+    return respuesta[0] if respuesta else ""
 
 def get_face_name(center_color):
     """Asigna la cara basada en el color central según estándar WCA"""
@@ -156,6 +304,21 @@ while True:
             if len(facelet_colors) >= 5:
                 current_colors = facelet_colors
                 current_center_color = facelet_colors[4]  # Posición 5 (0-indexed)
+
+    # Verificar cambios en la GUI cada cierto tiempo
+    if time.time() - last_gui_check > 0.5:  # Verificar cada 0.5 segundos
+        if gui is not None:
+            # Sincronizar cualquier cambio manual en la GUI
+            for cara in ['U', 'R', 'F', 'D', 'L', 'B']:
+                if cara in solved_sides:
+                    # Reconstruir el string desde la GUI
+                    nuevo_estado = []
+                    for i in range(3):
+                        for j in range(3):
+                            color = gui.estado_cubo[cara][i][j]
+                            nuevo_estado.append(gui.color_nombre_a_letra(color) if color else '?')
+                    solved_sides[cara] = ''.join(nuevo_estado)
+        last_gui_check = time.time()
 
     # Verificar estabilidad de colores
     if current_colors:
