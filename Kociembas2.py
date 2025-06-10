@@ -27,15 +27,3 @@ def kociembas_algorithm(U, R, F, D, L, B):
             return solution
         except Exception as e:
             return f"Error al resolver el cubo: {str(e)}"
-        
-
-"""
-solucion = kociembas_algorithm(
-    'UUUUUUUUU',  # Up
-    'RRRRRRRRR',  # Right
-    'FFFFFFFFF',  # Front
-    'DDDDDDDDD',  # Down
-    'LLLLLLLLL',  # Left
-    'BBBBBBBBB'   # Back
-)
-print(solucion)"""

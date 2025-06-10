@@ -1,7 +1,7 @@
 import tkinter as tk
 
 # Definimos los colores para el cubo de Rubik
-colores = ['white', 'red', 'blue', 'orange', 'green', 'yellow']
+colores = ['white', 'orange', 'green', 'red', 'blue', 'yellow']
 
 def rotar_color(event):
     # Obtener el color actual del cuadro que ha sido clickeado
