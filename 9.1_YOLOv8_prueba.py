@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import numpy as np
 import cv2
 
-model = YOLO('best.pt')  # El modelo está en la misma carpeta
+model = YOLO('yolov8n.pt')  # El modelo está en la misma carpeta
 # Índices para IOs --> '0'
 # Índices para Android --> '1' y '2'
 cap = cv2.VideoCapture(0)  # Cámara predeterminada (cambia a 1 si es externa)

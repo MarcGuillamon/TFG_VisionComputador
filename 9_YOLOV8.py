@@ -1,21 +1,18 @@
 import cv2
 from ultralytics import YOLO
-import numpy as np
+import logging
 
 # Cargar el modelo YOLOv8 (reemplaza con la ruta a tu modelo)
-model = YOLO('best.pt')  # o la ruta a tu modelo descargado
+model = YOLO('yolov8n_NEW.pt')  # o la ruta a tu modelo descargado
+model.verbose = False  # Esto reduce algunos mensajes
+logging.getLogger('ultralytics').setLevel(logging.WARNING)  # Silencia logs DEBUG e INFO
 
 # Configurar la cámara
-cap = cv2.VideoCapture(1)  # Cambia el índice si es necesario
+cap = cv2.VideoCapture(0)  # Cambia el índice si es necesario
 
 if not cap.isOpened():
-    print("No se pudo abrir la cámara. Verifica la conexión.")
+    print("Error: Cámara no detectada.")
     exit()
-
-# Obtener dimensiones
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-center_x, center_y = width // 2, height // 2
 
 while True:
     ret, frame = cap.read()
@@ -24,7 +21,7 @@ while True:
         break
     
     # Realizar la detección
-    results = model(frame, stream=True)
+    results = model(frame, stream=True, conf=0.7)  # Aquí es donde se aplica el filtro)
     
     # Dibujar los resultados
     for r in results:

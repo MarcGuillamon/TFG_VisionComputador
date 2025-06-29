@@ -34,11 +34,11 @@ threading.Thread(target=iniciar_interfaz, daemon=True).start()
 time.sleep(0.5)
 
 # Configuración inicial
-model = YOLO('best.pt')
+model = YOLO('yolov8n.pt')
 model.verbose = False  # Esto reduce algunos mensajes
 logging.getLogger('ultralytics').setLevel(logging.WARNING)  # Silencia logs DEBUG e INFO
 
-# Cargar la imagen
+# Cargar la imagen, '0' para iOs, '1' para Android, '2' para camara portàtil
 cap = cv2.VideoCapture(0)
 color_history = []
 stable_time_threshold = 2  # segundos
